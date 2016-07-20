@@ -22,6 +22,7 @@ controller: HomeController as hc
             size="small"
             ></a>
         </span>
+         <span class="right"><a href="#" zf-open="loginModal">Login</a>/<a href="#" zf-open="signupModal">Sign Up</a></span>
       </form>
       <span class="show-for-small-only">
         <a class="title" href="/#"><img ng-if="::hc.logoLocation" ng-src="{{::hc.logoLocation}}"/><span
@@ -63,7 +64,105 @@ controller: HomeController as hc
     </form>
   </nav>
 
+  <div id="loginModal" zf-modal="">
+      <div ng-show="hc.loginError" class="alert"><span class="alert label">{{hc.msg}}</span></div>
+      <form>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="username" class="right inline">Username</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="text" id="username" placeholder="Username" ng-model="hc.user.username">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="password" class="right inline">Password</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="password" id="password" placeholder="Password" ng-model="hc.user.password">
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+      <a href="#" class="button" ng-click="hc.login()">Submit</a>
+      <a zf-close="" class="button">Cancel</a>
+  </div>
 
+  <div id="signupModal" zf-modal="">
+      <div ng-show="hc.signupError" class="alert"><span class="alert label">{{hc.msg}}</span></div>
+      <form>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="username" class="right inline">Username</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="text" id="username" placeholder="Username" ng-model="hc.user.username">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="email" class="right inline">Email</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="text" id="email" placeholder="Email" ng-model="hc.user.email">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="password" class="right inline">Password</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="password" id="password" placeholder="Password" ng-model="hc.user.password">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="firstname" class="right inline">First Name</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="text" id="firstname" placeholder="First Name" ng-model="hc.user.first_name">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-8 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="lastname" class="right inline">Last Name</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="text" id="lastname" placeholder="Last Name" ng-model="hc.user.last_name">
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+      <a href="#" class="button" ng-click="hc.signup()">Submit</a>
+      <a zf-close="" class="button">Cancel</a>
+  </div>
 
   <!-- Main Content Frame -->
   <div class="grid-block">

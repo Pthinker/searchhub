@@ -1,11 +1,11 @@
 (function() {
   'use strict';
   angular
-    .module('searchHub.controllers.home', ['searchHub.services', 'lucidworksView.services', 'angucomplete-alt', 'angular-humanize'])
+    .module('searchHub.controllers.home', ['searchHub.services', 'lucidworksView.services', 'angucomplete-alt', 'angular-humanize', "$http", "$window", "$location"])
     .controller('HomeController', HomeController);
 
 
-  function HomeController($filter, $timeout, ConfigService, QueryService, URLService, Orwell, AuthService, _, $log) {
+  function HomeController($filter, $timeout, ConfigService, QueryService, URLService, Orwell, AuthService, _, $log, $http, $window, $location) {
 
     'ngInject';
     var hc = this; //eslint-disable-line
@@ -24,6 +24,10 @@
      */
     function activate() {
       hc.search = doSearch;
+      hc.signup = signup;
+      hc.login = login;
+      hc.signupError = false;
+      hc.loginError = false;
       hc.logout = logout;
       hc.onChangeSort = onChangeSort;
       hc.appName = ConfigService.config.search_app_title;
@@ -59,6 +63,43 @@
       $timeout(function(){
         URLService.setQuery(query);
       });
+    }
+
+    function signup() {
+      $http.post('/signup', hc.user)
+        .success(function (data) {
+          console.log(data);
+          if (data["success"] === true) {
+            hc.signupError = false;
+            hc.msg = data["msg"]
+            $window.location.href = $location.url();
+          } else {
+            hc.signupError = true;
+            hc.msg = data["msg"]
+          }
+        })
+        .error(function (data) {
+          hc.signupError = true;
+          hc.msg = "Sign up error!"
+        });
+    }
+
+    function login() {
+      $http.post('/login', hc.user)
+        .success(function (data) {
+          if (data["success"] === true) {
+            hc.loginError = false;
+            hc.msg = data["msg"]
+            $window.location.href = $location.url();
+          } else {
+            hc.loginError = true;
+            hc.msg = data["msg"]
+          }
+        })
+        .error(function (data) {
+          hc.loginError = true;
+          hc.msg = "Login error!"
+        });
     }
 
     function getSortFromQuery(query, rspSort){
