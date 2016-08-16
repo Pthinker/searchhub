@@ -99,6 +99,7 @@ def signup():
 
     return jsonify({"msg": msg, "success": success})
 
+
 # Route all Signals from Snowplow accordingly
 @app.route('/snowplow/<path:path>', methods=["GET"])
 def track_event(path):
