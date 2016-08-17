@@ -67,6 +67,7 @@ def login():
         if check_password_hash(user["password"], user_data["password"]):
             success = True
             msg = "Login success!"
+            email = user["email"]
         else:
             success = False
             msg = "Incorrect password!"
@@ -76,7 +77,7 @@ def login():
         msg = 'Username does not exists!'
 
 
-    return jsonify({"msg": msg, "success": success})
+    return jsonify({"msg": msg, "success": success, "email": email})
 
 @app.route('/signup', methods=["POST"])
 def signup():
