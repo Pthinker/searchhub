@@ -60,6 +60,11 @@ def search():
 @app.route('/login', methods=["POST"])
 def login():
     user_data = request.json
+
+    if (user_data is None) or ("username" not in user_data) or ("password" not in user_data):
+        msg = 'Please fill missing fields!'
+        return jsonify({"msg": msg, "success": False})
+
     users = backend.get_user(username=user_data["username"])
 
     if len(users) == 1:
@@ -82,6 +87,18 @@ def login():
 @app.route('/signup', methods=["POST"])
 def signup():
     user_data = request.json
+
+    if (user_data is None) or ("username" not in user_data) or ("email" not in user_data) or \
+            ("password" not in user_data) or ("password_confirm" not in user_data):
+        msg = 'Please fill missing fields!'
+        return jsonify({"msg": msg, "success": False})
+    elif len(user_data["password"]) < 6:
+        msg = 'Password length must be at least 6'
+        return jsonify({"msg": msg, "success": False})
+    elif user_data["password"] != user_data["password_confirm"]:
+        msg = 'Password does not match!'
+        return jsonify({"msg": msg, "success": False})
+
     user_data["password"] = generate_password_hash(user_data["password"])
     users = backend.get_user(username=user_data["username"], email=user_data["email"])
 
@@ -99,7 +116,6 @@ def signup():
             msg = "Sign up error!"
 
     return jsonify({"msg": msg, "success": success})
-
 
 # Route all Signals from Snowplow accordingly
 @app.route('/snowplow/<path:path>', methods=["GET"])

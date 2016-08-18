@@ -82,11 +82,11 @@ controller: HomeController as hc
   </div>
 
   <!-- login/register modals -->
-  <div id="loginModal" zf-modal="">
+  <div id="loginModal" zf-modal="" ng-if="!hc.is_login">
       <div ng-show="hc.loginError" class="alert"><span class="alert label">{{hc.msg}}</span></div>
       <form>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-10 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="username" class="right inline">Username</label>
@@ -98,7 +98,7 @@ controller: HomeController as hc
           </div>
         </div>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-10 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="password" class="right inline">Password</label>
@@ -113,11 +113,11 @@ controller: HomeController as hc
       <a href="#" class="button" ng-click="hc.login()">Submit</a>
       <a zf-close="" class="button">Cancel</a>
   </div>
-  <div id="signupModal" zf-modal="">
+  <div id="signupModal" zf-modal="" ng-if="!hc.is_login">
       <div ng-show="hc.signupError" class="alert"><span class="alert label">{{hc.msg}}</span></div>
       <form>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-12 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="username" class="right inline">Username</label>
@@ -129,7 +129,7 @@ controller: HomeController as hc
           </div>
         </div>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-12 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="email" class="right inline">Email</label>
@@ -141,7 +141,7 @@ controller: HomeController as hc
           </div>
         </div>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-12 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="password" class="right inline">Password</label>
@@ -153,7 +153,19 @@ controller: HomeController as hc
           </div>
         </div>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-12 columns">
+            <div class="row">
+              <div class="small-3 columns">
+                <label for="password_confirm" class="right inline">Confirm Password</label>
+              </div>
+              <div class="small-9 columns">
+                <input type="password" id="password_confirm" placeholder="Confirm Password" ng-model="hc.user.password_confirm">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="small-12 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="firstname" class="right inline">First Name</label>
@@ -165,7 +177,7 @@ controller: HomeController as hc
           </div>
         </div>
         <div class="row">
-          <div class="small-8 columns">
+          <div class="small-12 columns">
             <div class="row">
               <div class="small-3 columns">
                 <label for="lastname" class="right inline">Last Name</label>

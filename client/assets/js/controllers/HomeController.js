@@ -44,6 +44,7 @@
       hc.login = login;
       hc.signupError = false;
       hc.loginError = false;
+      hc.is_login = false;
       query = URLService.getQueryFromUrl();
       console.log(QueryService.getQueryObject());
 
@@ -93,11 +94,11 @@
         .success(function (data) {
           console.log(data);
           if (data["success"] === true) {
+            hc.is_login = true;
             hc.signupError = false;
             hc.msg = data["msg"];
             var snowplow = $window.searchhub_snowplow;
             snowplow('setUserId', hc.user.email);
-            $window.location.href = $location.url();
           } else {
             hc.signupError = true;
             hc.msg = data["msg"];
@@ -113,11 +114,11 @@
       $http.post('/login', hc.user)
         .success(function (data) {
           if (data["success"] === true) {
+            hc.is_login = true;
             hc.loginError = false;
             hc.msg = data["msg"]
             var snowplow = $window.searchhub_snowplow;
             snowplow('setUserId', data["email"]);
-            $window.location.href = $location.url();
           } else {
             hc.loginError = true;
             hc.msg = data["msg"];
@@ -212,6 +213,7 @@
      * Logs a user out of a session.
      */
     function logout(){
+      hc.is_login = false;
       AuthService.destroySession();
     }
   }
