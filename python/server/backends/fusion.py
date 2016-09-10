@@ -40,6 +40,7 @@ class FusionSession(requests.Session):
 
   def request(self, method, url, **kwargs):
     full_url = urljoin(self.__base_url, url)
+
     resp = super(FusionSession, self).request(method, full_url, **kwargs)
     if resp.status_code == 401:
       if url == "session":
@@ -60,6 +61,7 @@ class FusionBackend(Backend):
         app.config.get("FUSION_ADMIN_USERNAME"),
         app.config.get("FUSION_ADMIN_PASSWORD")
       )
+
     if app.config.get("FUSION_APP_USER"):
       self.app_session = FusionSession(
         app.config.get("FUSION_URL", "http://localhost:8764/api/"),
@@ -219,13 +221,13 @@ class FusionBackend(Backend):
       result = response_json["errorMessages"]
     return result
 
-  def send_signal(self, collection_id, payload):
+  def send_signal(self, collection_id, payload, req_headers=None):
     """
     Send a signal
     """
     resp = self.app_session.get("apollo/signals/{0}/i".format(collection_id),
                                   # tack on the i so that we invoke the snowplow endpoint
-                                  params=payload)
+                                  params=payload, headers=req_headers)
     if resp.status_code != 200:
       print "Unable to send signal: {0}".format(resp.text)
       return False
