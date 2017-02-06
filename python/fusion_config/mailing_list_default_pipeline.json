@@ -5,6 +5,7 @@
       "type": "mbox-parsing",
       "id": "8j7l23xr",
       "skip": false,
+      "contentField": "_raw_content_",
       "label": "Mail Parsing"
     },
     {
@@ -25,9 +26,7 @@
         "queryParams": {
           "irt": "${in_reply_to}",
           "q": "{!term f=id v=$irt}"
-        },
-        "headers": { },
-        "entity": { }
+        }
       },
       "skip": false,
       "label": "Find Thread Id",
@@ -42,6 +41,10 @@
         },
         {
           "source": "_rpc_.*",
+          "operation": "delete"
+        },
+        {
+          "source": "body_display",
           "operation": "delete"
         }
       ],

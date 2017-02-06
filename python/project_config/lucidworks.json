@@ -14,6 +14,25 @@
   },
   "websites": [
     {
+      "name": "youtube-lucidworks",
+      "label": "Lucidworks Youtube Channel",
+      "pipeline": "youtube_parser",
+      "url": "https://replace-this-url",
+      "schedule": {
+        "repeatUnit": "WEEK",
+        "interval": 1
+      },
+      "includeTags" : [ "title" ],
+      "includeTagIDs" : [ "action-panel-details" ],
+      "excludeTags" : [ "button" ],
+      "excludeTagClasses" : [ "related-list-item", "autoplay-dismiss-bar", "yt-spinner-message", "yt-alert-buttons", "signin-clickcard", "autoplay-bar", "action-panel-trigger-transcript" ],
+      "excludeTagIDs" : [ "watch-queue-mole", "unavailable-message", "action-panel-error", "action-panel-rental-required", "watch-transcript-container", "watch-more-related", "yt-masthead-signin", "watch-actions-transcript" ],
+      "restrictToTreeUseHostAndPath" : false,
+      "includeRegexes" : [ ".*youtube\\.com.*" ],
+      "scrapeLinksBeforeFiltering":true
+
+    },
+    {
       "name": "lucidworks-website",
       "label":"lucidworks.com Website",
       "pipeline":"lw-com-website-default",
@@ -21,6 +40,14 @@
       "schedule": {
         "repeatUnit": "WEEK",
         "interval": 1
+      },
+      "includeTags":["article", ".content", "title"],
+      "excludes" : [ ".*\\?cat_name.*", ".*\\/page\\/.*", ".*\\?pn.*", ".*replytocom.*" ],
+      "scrapeLinksBeforeFiltering":true,
+      "additional_mapping": {
+        "source" : "site_search_s",
+        "target" : "blog",
+        "operation" : "set"
       }
     },
     {
@@ -41,6 +68,14 @@
       "schedule": {
         "repeatUnit": "DAY",
         "interval": 2
+      },
+      "includeTags": [ "article", "title", "meta" ],
+      "excludeTagIDs" : [ "accordion" ],
+      "scrapeLinksBeforeFiltering":true,
+      "additional_mapping": {
+        "source" : "site_search_s",
+        "target" : "documentation",
+        "operation" : "set"
       }
     },
     {
@@ -52,7 +87,41 @@
         "repeatUnit": "DAY",
         "interval": 2
       },
-      "excludes":[".*signin.*"]
+      "excludes":[".*signin.*", ".*\\?filter.*", ".*\\?sort.*"], 
+      "includeTags":["article", "title"],
+      "scrapeLinksBeforeFiltering":true,
+      "additional_mapping": {
+        "source" : "site_search_s",
+        "target" : "support",
+        "operation" : "set"
+      }
+    },
+    {
+      "name": "lucidworks-javadocs-website",
+      "label":"doc.lucidworks.com javadocs Website",
+      "pipeline":"lw-docs-default",
+      "url": "https://doc.lucidworks.com/fusion-pipeline-javadocs/2.4/index-all.html",
+      "multiurl":["https://doc.lucidworks.com/fusion-pipeline-javadocs/2.4/index-all.html", "https://doc.lucidworks.com/fusion-pipeline-javadocs/2.2/index-all.html", "https://doc.lucidworks.com/fusion-pipeline-javadocs/2.1/index-all.html", "https://doc.lucidworks.com/fusion-pipeline-javadocs/2.0/index-all.html"],
+      "schedule": {
+        "repeatUnit": "DAY",
+        "interval": 2
+      },
+      "excludeTags" : [ "noscript" ],
+      "restrictToTreeUseHostAndPath" : false,
+      "includeTags":["article", "title"],
+      "scrapeLinksBeforeFiltering":true,
+      "includeRegexes" : [ ".*javadocs.*" ],
+      "excludeTagClasses" : [ "topNav", "navList", "subNavList", "skipNav" ],
+      "additional_mapping": {
+        "source" : "site_search_s",
+        "target" : "documentation",
+        "operation" : "set"
+      },
+      "additional_mapping_2": {
+        "source" : "productName",
+        "target" : "fusion",
+        "operation" : "set"
+      } 
     }
   ]
 }

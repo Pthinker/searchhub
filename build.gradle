@@ -37,8 +37,10 @@ subprojects {
     mavenCentral()
     //not thrilled by this, but let's try it
     flatDir {
-      dirs "$searchhubFusionHome" + "/apps/jetty/connectors/webapps/connectors/WEB-INF/lib",
-        "$searchhubFusionHome" + "/apps/jetty/connectors/webapps/connectors/WEB-INF/classes"
+      dirs "$searchhubFusionHome" + "/apps/libs/"
+    }
+    flatDir {
+      dirs "$searchhubFusionHome" + "/apps/spark/lib/"
     }
   }
 
@@ -75,7 +77,7 @@ subprojects {
 }
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '2.9'
+  gradleVersion = '2.13'
   distributionUrl = "https://downloads.gradle.org/distributions/gradle-${gradleVersion}-all.zip"
 }
 
@@ -88,7 +90,6 @@ task checkRequiredProperties() {
 }
 checkRequiredProperties
 
-version = '1.0'
 jar {
   manifest {
     attributes 'Implementation-Title': 'SearchHub Fusion',
@@ -102,22 +103,30 @@ jar {
 
 def jarDir = "searchhub-fusion-plugins/build/libs"
 
-task deployLibsToConnectors(type: Copy) {
+task deployLibsToSpark(type: Copy) {
   from jarDir
-  into "$searchhubFusionHome/apps/jetty/connectors/webapps/connectors/WEB-INF/lib/"
+  into "$searchhubFusionHome/apps/spark/lib/"
   dependsOn "searchhub-fusion-plugins:compileScala"
   dependsOn "jar"
 }
 
 task deployLibsToApi(type: Copy) {
   from jarDir
-  into "$searchhubFusionHome/apps/jetty/api/webapps/api/WEB-INF/lib/"
+  into "$searchhubFusionHome/apps/libs/"
   dependsOn "searchhub-fusion-plugins:compileScala"
   dependsOn "jar"
 }
 
-task deployLibs(dependsOn: [deployLibsToConnectors, deployLibsToApi]) {
-  println("Copied libs to connectors and apis")
+task deployLibs(dependsOn: [deployLibsToSpark, deployLibsToApi]) {
+  def searchhubJar = "\napps/libs/searchhub-fusion-plugins-${version}.jar"
+  if (file("$searchhubFusionHome/apps/jetty/api/webapps/api-extra-classpath.txt").exists()) {
+    file("$searchhubFusionHome/apps/jetty/api/webapps/api-extra-classpath.txt").append(searchhubJar)
+    println("Copied libs to apis")
+  }
+  if (file("$searchhubFusionHome/apps/jetty/connectors/webapps/connectors-extra-classpath.txt").exists()) {
+    file("$searchhubFusionHome/apps/jetty/connectors/webapps/connectors-extra-classpath.txt").append(searchhubJar)
+    println("Copied libs to connectors")
+  }
 }
 
 task installNPM(type: Exec) {
@@ -155,6 +164,11 @@ task install(dependsOn: [checkRequiredProperties, deployLibs, installNPM, instal
   }
 }
 
+//Primarily used when Fusion is running somewhere else and we don't need to build/install Fusion plugins locally
+task installNoLibDeploy(dependsOn: [checkRequiredProperties, installNPM, installBower, installPython]) {
+
+}
+
 task gulpConfig(type: Exec) {
   commandLine 'node_modules/gulp/bin/gulp.js', 'copy:configSample'
 }
@@ -189,11 +203,11 @@ project(":searchhub-fusion-plugins") {
 
   dependencies {
     compile fileTree(
-      dir: "$searchhubFusionHome/apps/jetty/connectors/webapps/connectors/WEB-INF/lib/",
+      dir: "$searchhubFusionHome/apps/libs/",
       includes: ["*.jar"]
     )
     compile fileTree(
-      dir: "$searchhubFusionHome/apps/jetty/api/webapps/api/WEB-INF/lib/",
+      dir: "$searchhubFusionHome/apps/libs/",
       includes: ["*.jar"]
     )
     compile "org.scala-lang:scala-library:2.10.5"
@@ -203,10 +217,10 @@ project(":searchhub-fusion-plugins") {
 
   compileScala.doFirst{
     println("Removing old instances of the plugin jar from Fusion")
-    delete fileTree(dir: "$searchhubFusionHome/apps/jetty/api/webapps/api/WEB-INF/lib/",
+    delete fileTree(dir: "$searchhubFusionHome/apps/libs/",
         include: "searchhub-fusion-plugins*.jar"
     )
-    delete fileTree(dir: "$searchhubFusionHome/apps/jetty/connectors/webapps/connectors/WEB-INF/lib/",
+    delete fileTree(dir: "$searchhubFusionHome/apps/libs/",
       include: "searchhub-fusion-plugins*.jar"
     )
   }

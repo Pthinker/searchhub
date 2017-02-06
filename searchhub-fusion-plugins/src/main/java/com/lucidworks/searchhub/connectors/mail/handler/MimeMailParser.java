@@ -17,8 +17,6 @@ import java.util.regex.Pattern;
 public class MimeMailParser {
   private final Logger logger = LoggerFactory.getLogger(MimeMailParser.class);
 
-  public static final String RAW_CONTENT = "_raw_content_";
-
   public static final String FIELD_PROJECT = "project";
   public static final String FIELD_FROM = "from";
   public static final String FIELD_FROM_EMAIL = "from_email";
@@ -43,13 +41,14 @@ public class MimeMailParser {
   public static final String FIELD_THREAD_ID = "threadId";
   public static final String FIELD_SENT_DATE = "publishedOnDate";
 
+  //Config vars
   private final List<Pattern> botEmailPatterns;
   private final Pattern idPattern;
   private final Session session;
+  private final String contentField;
 
   public MimeMailParser() {
-    idPattern = Pattern.compile(".*/\\d{6}\\.mbox/raw/%3[Cc].*%3[eE]$");
-    botEmailPatterns = Lists.newArrayList(
+    this(Pattern.compile(".*/\\d{6}\\.mbox/raw/%3[Cc].*%3[eE]$"), Lists.newArrayList(
             Pattern.compile(".*buildbot@.*"),
             Pattern.compile(".*git@.*"),
             Pattern.compile(".*hudson@.*"),
@@ -58,17 +57,15 @@ public class MimeMailParser {
             Pattern.compile(".*jira@.*"),
             Pattern.compile(".*subversion@.*"),
             Pattern.compile(".*svn@.*")
-    );
-
-
-    session = Session.getDefaultInstance(new Properties());
+    ), "_raw_content_");
   }
 
   //Used by the stage
-  public MimeMailParser(Pattern idPattern, List<Pattern> botEmailPatterns) {
+  public MimeMailParser(Pattern idPattern, List<Pattern> botEmailPatterns, String contentField) {
     this.idPattern = idPattern;
     this.botEmailPatterns = botEmailPatterns;
     session = Session.getDefaultInstance(new Properties());
+    this.contentField = contentField;
   }
 
   public PipelineDocument parse(PipelineDocument doc) throws MessagingException, MailException {
@@ -81,11 +78,11 @@ public class MimeMailParser {
       logger.debug("doc with ID: " + docId + " does not match raw mbox message URL format, skipping");
       return null;
     }
-    if (!doc.hasField(RAW_CONTENT)) {
-      logger.debug(RAW_CONTENT + " field empty in doc with ID: " + docId + ", skipping");
+    if (!doc.hasField(contentField)) {
+      logger.info(contentField + " field empty in doc with ID: " + docId + ", skipping");
       return null;
     }
-    String rawText = new String(((byte[]) doc.getFirstFieldValue(RAW_CONTENT)));
+    String rawText = new String(((byte[]) doc.getFirstFieldValue(contentField)));
     MimeMessage message = new MimeMessage(session, new ByteArrayInputStream(rawText.getBytes()));
     Mail mail = new Mail(message, docId);
     String newDocId = mail.getMailUrlId().getMessageId();
@@ -143,7 +140,8 @@ public class MimeMailParser {
     doc.setField(BaseDocument.FIELD_MODIFIED_DATE, mail.getSentDateStr());
     doc.setField(FIELD_IN_REPLY_TO, mail.getInReplyTo());
     doc.setField(BaseDocument.FIELD_CONTENT, mail.getNewContent());
-    doc.setField(BaseDocument.FIELD_CONTENT_DISPLAY, mail.getDisplayContent());
+    //TODO: don't do this, as Lucene/Solr has changed and rejects, by default, docs w/ large string size
+    //doc.setField(BaseDocument.FIELD_CONTENT_DISPLAY, mail.getDisplayContent());
 
     //Thread information
     doc.setField(FIELD_THREAD_ID, "unknown");

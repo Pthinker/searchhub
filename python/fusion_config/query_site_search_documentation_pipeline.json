@@ -1,0 +1,59 @@
+{
+  "id" : "site-search-documentation",
+  "stages" : [ {
+    "type" : "run-query-pipeline",
+    "id" : "c5lz8e5xms9u7syvi",
+    "pipelineToRun" : "site-search-base",
+    "type" : "run-query-pipeline",
+    "skip" : false,
+    "label" : "run-query-pipeline"
+  }, {
+    "type" : "set-params",
+    "id" : "100weprtl0udi",
+    "params" : [ {
+      "key" : "fq",
+      "value" : "site_search_s:documentation",
+      "policy" : "append"
+    } ],
+    "type" : "set-params",
+    "skip" : false,
+    "label" : "QueryParams - FilterQuery"
+  }, {
+    "type" : "facet",
+    "id" : "6v3va7o48epzaor",
+    "fieldFacets" : [ {
+      "field" : "productVersion",
+      "minCount" : 1,
+      "missing" : false
+    }, {
+      "field" : "productName",
+      "minCount" : 1,
+      "missing" : false
+    } ],
+    "type" : "facet",
+    "skip" : false,
+    "label" : "facet"
+  }, {
+    "type" : "set-params",
+    "id" : "ykzta24zy5fp3nmi",
+    "params" : [ {
+      "key" : "fl",
+      "value" : "title content body subject accepted_answer_txt answer_txt",
+      "policy" : "append"
+    } ],
+    "type" : "set-params",
+    "skip" : false,
+    "label" : "QueryParams - Wildcard Queries",
+    "condition" : "request.getFirstParam(\"q\") == \"*\" || request.getFirstParam(\"q\") == \"*:*\""
+  }, {
+    "type" : "solr-query",
+    "id" : "fy9epi3g56v5597ldi",
+    "allowedRequestHandlers" : [ ],
+    "httpMethod" : "POST",
+    "allowFederatedSearch" : false,
+    "type" : "solr-query",
+    "skip" : false,
+    "label" : "solr-query"
+  } ],
+  "properties" : { }
+}

@@ -14,7 +14,6 @@ from os import listdir
 from os.path import isfile, join
 
 from server import backend
-from server.backends.fusion import new_admin_session
 
 # Use the Solr Config API to bootstrap search_components and request handlers
 def setup_request_handlers(backend, collection_id):
@@ -43,10 +42,12 @@ def setup_commit_times(backend, collection_id, time_in_ms=10*60*1000):
 
   backend.set_property(collection_id, data)
 
+
 # Setup an official schema for things we know we are going to have in the data
 def setup_find_fields(backend, collection_id):
   backend.add_field(collection_id, "publishedOnDate", type="tdate", required=True)
   backend.add_field(collection_id, "suggest", type="suggesterFT", multivalued=True)
+  backend.add_field(collection_id, "all_suggest", type="suggesterFT", multivalued=True)
   backend.add_field(collection_id, "content", type="text_en")
   backend.add_field(collection_id, "project", type="string", copyDests=["suggest"])
   backend.add_field(collection_id, "project_label", type="string", copyDests=["suggest"])
@@ -56,7 +57,7 @@ def setup_find_fields(backend, collection_id):
   backend.add_field(collection_id, "keywords", type="text_en", copyDests=["suggest"])
   backend.add_field(collection_id, "comments", type="text_en")
   backend.add_field(collection_id, "mimeType", type="string")
-  backend.add_field(collection_id, "author_facet", type="string")
+  backend.add_field(collection_id, "author_facet", type="string", multivalued=True)
   backend.add_field(collection_id, "author", type="text_en", copyDests=["author_facet"])
   backend.add_field(collection_id, "og_description", type="text_en")
   backend.add_field(collection_id, "description", type="text_en")
@@ -71,6 +72,12 @@ def setup_find_fields(backend, collection_id):
   #backend.add_field(collection_id, "isDocumentation", type="boolean")
 
 # ((fusion)/(\d+.\d+))|((\w+|LucidWorksSearch-Docs)-v(\d+\.\d+))
+
+def setup_experiments(backend):    
+  job_files = [f for f in listdir("./fusion_config") if isfile(join("./fusion_config", f)) and f.endswith("_experiment.json")]    
+  for file in job_files:    
+    print ("Creating Experiment for %s" % file)   
+    backend.create_experiment(json.load(open(join("./fusion_config", file))))
 
 # Setup schema for user collection
 def setup_user_fields(backend, collection_id):
@@ -132,7 +139,7 @@ def setup_projects(backend):
   for file in project_files: #TODO: what's the python way here?
     print ("Creating Project for %s" % file)
     project = json.load(open(join("./project_config", file)))
-    print("Bootstraping configs for %s..." % project["name"])
+    print("Bootstrapping configs for %s..." % project["name"])
     #create the data sources
     datasources = []
     (twitter_config, jira_config, mailbox_configs, wiki_configs, website_configs, github_configs, stack_configs) = backend.create_or_update_datasources(project)
@@ -155,11 +162,10 @@ def setup_projects(backend):
           backend.start_datasource(datasource["id"])
 
 
-
-
-
 backend.toggle_system_metrics(False)
 backend.set_log_level("WARN")
+
+backend.update_logging_scheduler()
 
 lucidfind_collection_id = app.config.get("FUSION_COLLECTION", "lucidfind")
 lucidfind_batch_recs_collection_id = app.config.get("FUSION_BATCH_RECS_COLLECTION", "lucidfind_thread_recs")
@@ -181,6 +187,36 @@ if cmd_args.create_collections or create_all:
           "GET"
         ],
         "path": "/query-pipelines/lucidfind-default/collections/{0}/select".format(lucidfind_collection_id)
+      },
+      {
+        "methods": [
+          "GET"
+        ],
+        "path": "/query-pipelines/site-search-blog/collections/{0}/select".format(lucidfind_collection_id)
+      },
+      {
+        "methods": [
+          "GET"
+        ],
+        "path": "/query-pipelines/site-search-support/collections/{0}/select".format(lucidfind_collection_id)
+      },
+      {
+        "methods": [
+          "GET"
+        ],
+        "path": "/query-pipelines/site-search-documentation/collections/{0}/select".format(lucidfind_collection_id)
+      },
+      {
+        "methods": [
+          "GET"
+        ],
+        "path": "/query-pipelines/site-search-videos/collections/{0}/select".format(lucidfind_collection_id)
+      },
+      {
+        "methods": [
+          "GET"
+        ],
+        "path": "/query-pipelines/site-search-all/collections/{0}/select".format(lucidfind_collection_id)
       },
       {
         "methods": [
@@ -217,6 +253,18 @@ if cmd_args.create_collections or create_all:
           "GET"
         ],
         "path": "/signals/{0}/i".format(lucidfind_collection_id)
+      },   
+      {   
+        "methods": [    
+          "GET"   
+        ],# Make this more flexible, as this is hardcoded now   
+        "path": "/experiments/jobs/download_v_learn_more/variant"   
+      },    
+      {   
+        "methods": [    
+          "PUT"   
+        ],    
+        "path": "/experiments/jobs/download_v_learn_more/variant/*"
       }
     ]
   }
@@ -228,9 +276,10 @@ if status == False:
 
 # Create the collection, setup fields and other solr pieces
 if cmd_args.create_collections or create_all:
-  session = new_admin_session()
   # Create the "lucidfind" collection
-  solr_params = {"replicationFactor":2,"numShards":1}
+  num_shards = app.config.get("FUSION_COLLECTION_NUM_SHARDS", "1")
+  num_replicas = app.config.get("FUSION_COLLECTION_NUM_REPLICAS", "2")
+  solr_params = {"replicationFactor":int(num_replicas),"numShards":int(num_shards)}
   status = backend.create_collection(lucidfind_collection_id, enable_signals=True, solr_params=solr_params, default_commit_within=60*10*1000)
   if status == False:
     exit(1)
@@ -257,7 +306,11 @@ if cmd_args.create_collections or create_all:
 if cmd_args.create_pipelines or create_all:
   setup_pipelines(backend)
   backend.create_query_profile(lucidfind_collection_id, "lucidfind-default", "lucidfind-default")
-
+  backend.create_query_profile(lucidfind_collection_id, "site-search-blog", "site-search-blog")
+  backend.create_query_profile(lucidfind_collection_id, "site-search-documentation", "site-search-documentation")
+  backend.create_query_profile(lucidfind_collection_id, "site-search-support", "site-search-support")
+  backend.create_query_profile(lucidfind_collection_id, "site-search-videos", "site-search-videos")
+  backend.create_query_profile(lucidfind_collection_id, "site-search-all", "site-search-all")
 
 if cmd_args.create_taxonomy or create_all:
   setup_taxonomy(backend, lucidfind_collection_id)
@@ -273,6 +326,9 @@ if cmd_args.create_batch_jobs or create_all:
 #create the schedules
 if cmd_args.create_schedules or create_all:
   setup_schedules(backend)
+
+if cmd_args.create_experiments or create_all:
+  setup_experiments(backend)
 
 if cmd_args.start_schedules:
   start_schedules(backend)

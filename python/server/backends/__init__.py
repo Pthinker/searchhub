@@ -31,19 +31,6 @@ class Backend(object):
     """
     raise NotImplementedError()
 
-  def find_documents(self, query="*", source=None, author=None, project=None, limit=10, offset=0):
-    """
-    Filter and/or search for documents in the backend
-
-    :param query: a full text query
-    :param source: filter on the document's source field
-    :param author: filter on the document's author field
-    :param author: filter on the document's project field
-    :param limit: limits how many results to return
-    :param offset: how deeply into the results to start returning
-    :returns: a list of the resulting documents
-    """
-    raise NotImplementedError()
 
   def create_collection(self, collection_id, enable_signals=False, enable_search_logs=True, enable_dynamic_schema=True, solr_params=None):
     raise NotImplementedError()
@@ -73,6 +60,9 @@ class Backend(object):
     raise NotImplementedError()
 
   def create_or_update_schedule(self, schedule):
+    raise NotImplementedError()
+
+  def create_experiment(self, experiment_config):
     raise NotImplementedError()
 
   #if schedules is none, then activate all.  If specified, only activate those schedules that match

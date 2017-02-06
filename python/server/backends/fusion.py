@@ -12,8 +12,20 @@ from server.backends.wiki_helper import create_wiki_datasource_configs
 from server.backends.stack_helper import create_stack_datasource_configs
 from urlparse import urljoin
 
-from server import app
+from apiclient.discovery import build
+from apiclient.errors import HttpError
+from oauth2client.tools import argparser
+import requests
 
+import os
+import argparse
+import json
+import time
+import sys
+import urllib2
+
+from server import app
+import random
 
 class FusionSession(requests.Session):
   """
@@ -24,6 +36,7 @@ class FusionSession(requests.Session):
     super(FusionSession, self).__init__()
     self.__base_url = proxy_url
     self.proxy_url = proxy_url
+    print("Using: {0}".format(self.proxy_url))
     self.username = username
     self.password = password
     if not lazy:
@@ -43,7 +56,7 @@ class FusionSession(requests.Session):
 
     resp = super(FusionSession, self).request(method, full_url, **kwargs)
     if resp.status_code == 401:
-      if url == "session":
+      if url == "/session":
         return resp
       else:
         print("session expired, re-authenticating")
@@ -52,23 +65,61 @@ class FusionSession(requests.Session):
     else:
       return resp
 
-
+# The Backend is primarily used by the bootstrap
 class FusionBackend(Backend):
   def __init__(self):
     if app.config.get("FUSION_ADMIN_USERNAME"):
-      self.admin_session = FusionSession(
-        app.config.get("FUSION_URL", "http://localhost:8764/api/"),
+      self.admin_session = self.get_fusion_session(
         app.config.get("FUSION_ADMIN_USERNAME"),
         app.config.get("FUSION_ADMIN_PASSWORD")
       )
+      if self.admin_session is None:
+        print "Admin: {0}.  App: {1}".format(self.admin_session, self.app_session)
+        raise Exception("Unable to establish a connection with any of the Fusion nodes in {0}".format(app.config.get("FUSION_URLS")))
 
     if app.config.get("FUSION_APP_USER"):
-      self.app_session = FusionSession(
-        app.config.get("FUSION_URL", "http://localhost:8764/api/"),
-        app.config.get("FUSION_APP_USER"),  # TODO change to another user
-        app.config.get("FUSION_APP_PASSWORD"),
-        lazy=True
+      self.app_session = self.get_fusion_session(
+        app.config.get("FUSION_APP_USER"),
+        app.config.get("FUSION_APP_PASSWORD")
       )
+      if self.app_session is None:
+        print "Admin: {0}.  App: {1}".format(self.admin_session, self.app_session)
+        raise Exception("Unable to establish a connection with any of the Fusion nodes in {0}".format(app.config.get("FUSION_URLS")))
+
+
+  def get_fusion_session(self, user, password, lazy=False):
+    fusion_urls = list(app.config.get("FUSION_URLS"))
+    session = None
+    i = 0
+    list_len = len(fusion_urls) #calc outside of the loop, as we are going to be removing values from the loop as we go
+    while (i < list_len):
+      #Note: the requests library has built in retry of the underlying connection, so this loop of retries is about trying alternate URLs
+      node_choice = random.randint(0, len(fusion_urls) - 1)# randint is inclusive of both sides
+      fusion_url = fusion_urls[node_choice]
+      if fusion_url is not None:
+          del fusion_urls[node_choice] # Remove it from the list b/c if it fails, we don't want to try again and if we succeed, it doesn't matter
+          try:
+            session = FusionSession(fusion_url, user, password, lazy)
+            print "Esttablished a Fusion session with {0}".format(fusion_url)
+            break
+          except:
+            print "Connecting to {0} failed, trying a different URL from: {1} (if empty, we give up!)".format(fusion_url, fusion_urls)
+      else:
+        print "No more URLs to try, giving up for: {0} w/ data: {1}".format(path)
+        break
+
+      i += 1
+
+    return session
+
+  def get_random_fusion_url(self):
+    fusionUrls = app.config.get("FUSION_URLS")
+    if fusionUrls and len(fusionUrls) > 0:
+      rand = random.randint(0, len(fusionUrls)-1)
+      return fusionUrls[rand]
+    else:
+      print("You don't have any FUSION_HOSTS defined")
+      return None
 
   def toggle_system_metrics(self, enabled=True):
     print "Setting System Metrics indexing to {0}".format(enabled)
@@ -168,7 +219,7 @@ class FusionBackend(Backend):
     if resp.status_code != 200 or errors:
       print "Couldn't create config, trying replace {0}".format(original["name"])
       resp = self.admin_session.post("apollo/solr/{0}/config".format(collection_name),
-                                   data=json.dumps(replace))
+                                     data=json.dumps(replace))
       errors = self.check_bulk_api_for_errors(resp.json())
       if resp.status_code != 200 or errors:
         print "Unable to create config: {0}".format(resp.text)
@@ -180,36 +231,36 @@ class FusionBackend(Backend):
     return True
 
   def remove_request_handler(self, collection_name, req_handler_name):
-      print "Attempting removal of request handler: {0}".format(req_handler_name)
-      remove = {
-          "delete-requesthandler": req_handler_name
-      }
-      resp = self.admin_session.post("apollo/solr/{0}/config".format(collection_name),
-                                 data=json.dumps(remove))
-      errors = self.check_bulk_api_for_errors(resp.json())
-      if resp.status_code != 200 or errors:
-        print "Couldn't remove req handler: {0}".format(req_handler_name)
-        print errors
-        return False
-      else:
-          print "Removed req handler {0}".format(req_handler_name)
-      return True
+    print "Attempting removal of request handler: {0}".format(req_handler_name)
+    remove = {
+      "delete-requesthandler": req_handler_name
+    }
+    resp = self.admin_session.post("apollo/solr/{0}/config".format(collection_name),
+                                   data=json.dumps(remove))
+    errors = self.check_bulk_api_for_errors(resp.json())
+    if resp.status_code != 200 or errors:
+      print "Couldn't remove req handler: {0}".format(req_handler_name)
+      print errors
+      return False
+    else:
+      print "Removed req handler {0}".format(req_handler_name)
+    return True
 
   def remove_search_component(self, collection_name, component_name):
-      print "Attempting removal of search component: {0}".format(component_name)
-      remove = {
-          "delete-searchcomponent": component_name
-      }
-      resp = self.admin_session.post("apollo/solr/{0}/config".format(collection_name),
-                                 data=json.dumps(remove))
-      errors = self.check_bulk_api_for_errors(resp.json())
-      if resp.status_code != 200 or errors:
-        print "Couldn't remove search component: {0}".format(component_name)
-        print errors
-        return False
-      else:
-          print "Removed search comp {0}".format(component_name)
-      return True
+    print "Attempting removal of search component: {0}".format(component_name)
+    remove = {
+      "delete-searchcomponent": component_name
+    }
+    resp = self.admin_session.post("apollo/solr/{0}/config".format(collection_name),
+                                   data=json.dumps(remove))
+    errors = self.check_bulk_api_for_errors(resp.json())
+    if resp.status_code != 200 or errors:
+      print "Couldn't remove search component: {0}".format(component_name)
+      print errors
+      return False
+    else:
+      print "Removed search comp {0}".format(component_name)
+    return True
 
 
   #Returns None if there are no errors, else a list of the errors
@@ -226,8 +277,8 @@ class FusionBackend(Backend):
     Send a signal
     """
     resp = self.app_session.get("apollo/signals/{0}/i".format(collection_id),
-                                  # tack on the i so that we invoke the snowplow endpoint
-                                  params=payload, headers=req_headers)
+                                # tack on the i so that we invoke the snowplow endpoint
+                                params=payload, headers=req_headers)
     if resp.status_code != 200:
       print "Unable to send signal: {0}".format(resp.text)
       return False
@@ -332,11 +383,11 @@ class FusionBackend(Backend):
   def create_query_profile(self, collection_id, name, pipeline_name):
 
     resp = self.admin_session.put("apollo/collections/{0}/query-profiles/{1}".format(collection_id, name),
-                                  data='"' + pipeline_name + '"',
-                                  headers={"Content-type": "application/json"})
+                                  data= pipeline_name ,
+                                  headers={"Content-type": "text/plain"})
 
     if resp.status_code != 204:
-      print resp.status_code, resp.json()
+      print "Problem creating query profile: {0}, {1}".format(resp.status_code, resp.json())
     return resp
 
   def create_pipeline(self, pipeline_config, pipe_type="index-pipelines"):
@@ -347,6 +398,8 @@ class FusionBackend(Backend):
 
     if resp.status_code != 200:
       print resp.status_code, resp, json.dumps(pipeline_config)
+      print resp.text
+      return resp
     resp = self.admin_session.put("apollo/{0}/{1}/refresh".format(pipe_type, id),
                                   headers={"Content-type": "application/json"})
     if resp.status_code != 204:
@@ -360,6 +413,41 @@ class FusionBackend(Backend):
                                   headers={"Content-type": "application/json"})
     if resp.status_code != 200:
       print resp.status_code, resp.json()
+    return resp
+
+  def create_experiment(self, experiment_config):
+    id = experiment_config["id"]
+    print "create experiment: " + id
+    success = False
+    resp = self.admin_session.post("apollo/experiments/configs", data=json.dumps(experiment_config),
+                                   headers={"Content-type": "application/json"})
+
+    if resp.status_code != 200:
+
+      if resp.status_code == 409:#try a PUT
+        print "Trying PUT"
+        resp = self.admin_session.put("apollo/experiments/configs/{0}".format(id), data=json.dumps(experiment_config),
+                                      headers={"Content-type": "application/json"})
+
+        if resp.status_code != 200:
+          print resp.status_code, resp.json()
+        else:
+          success = True
+      else:
+        print resp.status_code, resp.json()
+    else:
+      success = True
+      success = True
+
+    if success:
+      #start the job
+      print "Starting {} experiment".format(id)
+      resp = self.admin_session.post("apollo/experiments/jobs/{0}".format(id), data=None)
+      if resp.status_code != 200:
+        print "Unable to start job"
+        print resp.status_code, resp.json()
+
+
     return resp
 
   def create_or_update_datasources(self, project, includeJIRA=False):
@@ -397,7 +485,7 @@ class FusionBackend(Backend):
       for schedule in schedules:
         self.create_or_update_schedule(schedule)
     # Generate Githubs
-    if "githubs" in project:
+    if "githubs" in project and app.config.get('GITHUB_KEY') and app.config.get('GITHUB_KEY') is not "XXXXXXXX":
       github_configs, schedules = create_github_datasource_configs(project)
       for config in github_configs:
         self.update_datasource(**config)
@@ -442,51 +530,6 @@ class FusionBackend(Backend):
     }
     resp = self.app_session.get(path, params=params, headers={"Content-type": "application/json"})
     return self._from_solr_doc(resp.json()['response']['docs'][0])
-
-  def find_documents(self, query="*", source=None, author=None, project=None, limit=10, offset=0):
-    path = "apollo/query-pipelines/{0}/collections/{1}/select".format("default", "lucidfind")
-    # TODO move this to a QP config?
-    params = {
-      "q": query,
-      "defType": "edismax",
-      "qf": ["author_t^10", "person_t^8", "content_t^6", "source_s^4", "project^4"],
-      "fl": ["id:id", "author:author_s", "source:source_s", "project:project", "content:content_t",
-             "created_at:created_at_dt", "link:url"],
-      "fq": [],
-      "rows": limit,
-      "start": offset,
-      "facet": True,
-      "facet.mincount": 1,
-      "facet.limit": 20,
-      "facet.order": "count",
-      "facet.field": ["source_s", "person_ss", "project"],
-      "wt": "json",
-      "json.nl": "arrarr"
-    }
-
-    if source is not None:
-      params['fq'].append("source_s:{0}".format(source))
-    if author is not None:
-      params['fq'].append("author_s:{0}".format(author))
-    if project is not None:
-      params['fq'].append("project:{0}".format(project))
-    params['fq'].append("content_t:*")  # TODO is this a bug in the field mapper "set" op?
-
-    resp = self.app_session.get(path, params=params, headers={"Content-type": "application/json"})
-
-    decoded = resp.json()
-    docs = [self._from_solr_doc(doc) for doc in decoded['response']['docs']]
-
-    facets = decoded['facet_counts']['facet_fields']
-    ordered_facets = OrderedDict()
-    for field, field_facets in facets.items():
-      # TODO rename facet fields?
-      ordered_facets[field] = OrderedDict()
-      for value, count in field_facets:
-        ordered_facets[field][value] = count
-
-    found = decoded['response']['numFound']
-    return docs, ordered_facets, found
 
   def get_user(self, username, email=""):
     path = "apollo/collections/{0}/query-profiles/{1}/select".format("users", "default")
@@ -552,13 +595,57 @@ class FusionBackend(Backend):
       print resp.text
       raise Exception("Couldn't create taxonomy for {0}.  Tax: {1}".format(collection_id, taxonomy))
 
+
+
+  def update_logging_scheduler(self):
+    delete_old_logs_json = {
+      "id":"delete-old-logs",
+      "creatorType":"system",
+      "creatorId":"DefaultLogCleanupScheduleRegistrar",
+      "createTime":"2016-10-06T17:03:43.792Z",
+      "startTime":"2016-10-06T17:03:43.792Z",
+      "repeatUnit":"DAY",
+      "interval":"1",
+      "active":"true",
+      "callParams":{
+        "uri":"solr://logs/update",
+        "method":"GET",
+        "queryParams":{
+          "wt":"json",
+          "stream.body":"<delete><query>timestamp_tdt:[* TO NOW-1DAYS] OR timestamp_dt:[* TO NOW-1DAYS]</query></delete>"
+        },
+        "headers":{
+
+        }
+      }
+    }
+    start_value = self.admin_session.get("apollo/scheduler/schedules/delete-old-logs")
+    try:
+      start_value.raise_for_status()
+      start_status = start_value.status_code
+      if (start_status == 404):
+        print("We have to create a new delete-old-logs schedule")
+        final_value = self.admin_session.post("apollo/scheduler/schedules/delete-old-logs", data=json.dumps(delete_old_logs_json))
+      else:
+        print("We have to update the existing delete-old-logs schedule")
+        final_value = self.admin_session.put("apollo/scheduler/schedules/delete-old-logs", data=json.dumps(delete_old_logs_json))
+
+      final_value.raise_for_status()
+
+    except:
+      print("ERROR: Failed to update the delete logs schedule")
+
+    else:
+      print("SUCCESS: We have updated the delete logs schedule")
+
+
   def create_or_update_schedule(self, schedule):
     # check to see if it exists already
     resp = self.admin_session.get("apollo/scheduler/schedules/{0}".format(schedule["id"]))
     if resp.status_code == 200:
       print "Updating schedule for {0}".format(schedule["id"])
       resp = self.admin_session.put("apollo/scheduler/schedules/{0}".format(schedule["id"]), data=json.dumps(schedule),
-                                   headers={"Content-type": "application/json"})
+                                    headers={"Content-type": "application/json"})
       if resp.status_code == 204:
         return None  #TODO: better code here?
       else:
@@ -568,7 +655,7 @@ class FusionBackend(Backend):
     elif resp.status_code == 404:
       print "Creating schedule for {0}".format(schedule["id"])
       resp = self.admin_session.post("apollo/scheduler/schedules", data=json.dumps(schedule),
-                                   headers={"Content-type": "application/json"})
+                                     headers={"Content-type": "application/json"})
       if resp.status_code == 200:
         return resp.json()
       else:
@@ -606,9 +693,9 @@ class FusionBackend(Backend):
           self.create_or_update_schedule(schedule)
 
     else:
-        print resp.status_code
-        print resp.text
-        raise Exception("Couldn't get list of schedules")
+      print resp.status_code
+      print resp.text
+      raise Exception("Couldn't get list of schedules")
     return None
   def get_datasource(self, id):
     resp = self.admin_session.get("apollo/connectors/datasources/{0}".format(id))
@@ -658,7 +745,7 @@ class FusionBackend(Backend):
         print "Stopping {0}".format(ds["id"])
         self.stop_datasource(ds["id"])
     else:
-        raise Exception("Unable to retrieve datasource list")
+      raise Exception("Unable to retrieve datasource list")
 
   def stop_datasource(self, id, abort=False):
     datasource = self.get_datasource(id)
@@ -666,27 +753,6 @@ class FusionBackend(Backend):
       resp = self.admin_session.delete("apollo/connectors/jobs/{0}?abort={1}".format(id, str(abort).lower()))
       return resp.json()
 
-
-def _new_session(proxy_url, username, password):
-  "Establishes a cookie-based session with the Fusion proxy node"
-  session = FusionSession(proxy_url, username, password)
-  return session
-
-
-def new_admin_session():
-  return _new_session(
-    app.config.get("FUSION_URL", "http://localhost:8764/api/"),
-    app.config.get("FUSION_ADMIN_USERNAME"),
-    app.config.get("FUSION_ADMIN_PASSWORD")
-  )
-
-
-def new_user_session():
-  return _new_session(
-    app.config.get("FUSION_URL", "http://localhost:8764/api/"),
-    app.config.get("FUSION_APP_USER"),
-    app.config.get("FUSION_APP_PASSWORD")
-  )
 
 
 def compare_datasources(test_datasource, target_datasource):
